@@ -8,5 +8,6 @@ urlpatterns = [
     # Django auth (login/logout) views
     path('accounts/', include('django.contrib.auth.urls')),
     path('', include('bookings.urls')),
+    path('api/', include('bookings.api_urls')),
 ]
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

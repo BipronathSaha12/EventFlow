@@ -1,13 +1,27 @@
 import os
 from pathlib import Path
 
+try:
+    import pymysql
+    pymysql.install_as_MySQLdb()
+    HAS_PYMYSQL = True
+except ImportError:
+    HAS_PYMYSQL = False
+
+# Bypass Django version check & RETURNING feature for older local MariaDB (e.g. XAMPP MariaDB 10.4)
+from django.db.backends.base.base import BaseDatabaseWrapper
+from django.db.backends.mysql.features import DatabaseFeatures
+
+BaseDatabaseWrapper.check_database_version_supported = lambda self: None
+DatabaseFeatures.can_return_columns_from_insert = False
+
+
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'your-secret-key'
 DEBUG = True
-# For local development, allow localhost and common dev hosts.
-# In production, set this to your real domain(s).
-# ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver']
 ALLOWED_HOSTS = ["*"] 
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -15,6 +29,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
+    'rest_framework',
+    'rest_framework_simplejwt',
     'bookings',
 ]
 
@@ -22,12 +39,15 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ] 
+CORS_ALLOW_ALL_ORIGINS = True
+
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 ROOT_URLCONF = 'booking_project.urls'
 
@@ -45,21 +65,43 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'booking_project.wsgi.application'
-
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': os.environ.get('DB_NAME', 'eventflow_db'),
+        'USER': os.environ.get('DB_USER', 'root'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+        'HOST': os.environ.get('DB_HOST', 'localhost'),
+        'PORT': os.environ.get('DB_PORT', '3306'),
+        'OPTIONS': {
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+        }
     }
 }
+
+
+
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
+}
+
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+}
+
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR/'staticfiles'
 
 # bookings app lives one level above BASE_DIR (which is the folder containing manage.py),
 # so include its static/ directory explicitly.
-STATICFILES_DIRS = [BASE_DIR.parent / 'bookings' / 'static']
+STATICFILES_DIRS = [BASE_DIR / 'bookings' / 'static'] if (BASE_DIR / 'bookings' / 'static').exists() else []
+
 
 # Note: WhiteNoise is already enabled in the MIDDLEWARE list above.
 
